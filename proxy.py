@@ -1,4 +1,4 @@
-# proxy.py - РАБОТАЮЩАЯ ВЕРСИЯ
+# proxy.py - с обработкой health check
 import socket
 import threading
 import os
@@ -25,7 +25,13 @@ def handle_client(client_socket):
         method = parts[0]
         url = parts[1]
         
-        print(f"{method} {url[:50]}")
+        # Для health check (GET /)
+        if url == '/' or url == '/favicon.ico':
+            client_socket.send(b'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK')
+            client_socket.close()
+            return
+        
+        print(f"📨 {method} {url[:50]}")
         
         # HTTPS
         if method == 'CONNECT':
@@ -41,8 +47,8 @@ def handle_client(client_socket):
             threading.Thread(target=forward, args=(client_socket, remote)).start()
             forward(remote, client_socket)
             
-        # HTTP
         else:
+            # HTTP
             if url.startswith('http://'):
                 url = url[7:]
             
@@ -57,11 +63,8 @@ def handle_client(client_socket):
             
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             remote.connect((host, 80))
-            
-            # Просто передаем оригинальный запрос
             remote.send(request)
             
-            # Пересылаем ответ
             while True:
                 response = remote.recv(8192)
                 if not response:
@@ -101,5 +104,4 @@ print("="*40)
 
 while True:
     client, addr = server.accept()
-    print(f"🔗 Подключение: {addr}")
     threading.Thread(target=handle_client, args=(client,), daemon=True).start()
