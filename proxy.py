@@ -1,57 +1,38 @@
-# proxy.py - ЕДИНСТВЕННЫЙ файл, который нужен
-import socket
-import threading
+# test.py - минимальный тест
 import os
 
-PORT = int(os.environ.get('PORT', 8080))
-HOST = '0.0.0.0'
+PORT = os.environ.get('PORT', 8080)
 
-print(f"Прокси запущен на порту {PORT}")
+print("="*50)
+print("ТЕСТОВЫЙ СЕРВЕР ЗАПУЩЕН")
+print("="*50)
+print(f"Порт: {PORT}")
+print("="*50)
 
-def handle(client):
-    try:
-        data = client.recv(4096)
-        if not data:
-            return
-        
-        # Получаем хост
-        first_line = data.split(b'\n')[0].decode()
-        url = first_line.split(' ')[1]
-        
-        if url.startswith('http://'):
-            url = url[7:]
-        
-        host = url.split('/')[0]
-        if ':' in host:
-            host = host.split(':')[0]
-        
-        # Подключаемся к целевому серверу
-        remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        remote.connect((host, 80))
-        remote.send(data)
-        
-        # Пересылаем ответ
-        while True:
-            resp = remote.recv(4096)
-            if not resp:
-                break
-            client.send(resp)
-        
-        remote.close()
-    except Exception as e:
-        print(f"Ошибка: {e}")
-    finally:
-        client.close()
+# Простой HTTP сервер
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Запускаем сервер
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server.bind((HOST, PORT))
-server.listen(100)
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        
+        html = f"""
+        <html>
+        <body>
+            <h1>✅ Сервер работает!</h1>
+            <p>Порт: {PORT}</p>
+            <p>Ваш IP: {self.client_address[0]}</p>
+        </body>
+        </html>
+        """
+        self.wfile.write(html.encode())
+    
+    def log_message(self, format, *args):
+        print(f"Запрос: {args}")
 
-print("Сервер готов!")
-
-while True:
-    client, addr = server.accept()
-    print(f"Подключение: {addr}")
-    threading.Thread(target=handle, args=(client,)).start()
+print(f"Запуск HTTP сервера на порту {PORT}...")
+server = HTTPServer(('0.0.0.0', int(PORT)), Handler)
+print("Сервер готов! Ожидание запросов...")
+server.serve_forever()
